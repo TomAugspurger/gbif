@@ -1,0 +1,73 @@
+{
+  "type": "Collection",
+  "id": "gbif",
+  "stac_version": "1.0.0",
+  "description": "{{ collection.description }}",
+  "links": [
+    {
+      "rel": "license",
+      "href": "https://www.gbif.org/terms",
+      "type": "text/html",
+      "title": "Terms of use"
+    },
+    {
+      "rel": "self",
+      "href": "/home/taugspurger/src/stactools-packages/gbif/examples/collection.json",
+      "type": "application/json"
+    }
+  ],
+  "stac_extensions": [
+    "https://stac-extensions.github.io/item-assets/v1.0.0/schema.json",
+    "https://stac-extensions.github.io/table/v1.2.0/schema.json"
+  ],
+  "item_assets": {
+    "data": {
+      "type": "application/x-parquet",
+      "title": "Dataset root",
+      "roles": [
+        "data"
+      ]
+    }
+  },
+  "msft:short_description": "An international network and data infrastructure funded by the world's governments providing global data that document the occurrence of species.",
+  "msft:container": "gbif",
+  "msft:storage_account": "ai4edataeuwest",
+  "title": "Global Biodiversity Information Facility (GBIF)",
+  "extent": {
+    "spatial": {
+      "bbox": [
+        [
+          -180,
+          -90,
+          180,
+          90
+        ]
+      ]
+    },
+    "temporal": {
+      "interval": [
+        [
+          "2021-04-13T00:00:00Z",
+          null
+        ]
+      ]
+    }
+  },
+  "license": "proprietary",
+  "keywords": [
+    "GBIF",
+    "Biodiversity",
+    "Species"
+  ],
+  "providers": [
+    {
+      "name": "Global Biodiversity Information Facility",
+      "roles": [
+        "producer",
+        "licensor",
+        "processor"
+      ],
+      "url": "https://www.gbif.org/"
+    }
+  ]
+}

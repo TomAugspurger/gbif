@@ -1,4 +1,5 @@
 import logging
+import json
 
 import click
 
@@ -39,14 +40,19 @@ def create_gbif_command(cli):
     @gbif.command("create-item", short_help="Create a STAC item")
     @click.argument("source")
     @click.argument("destination")
-    def create_item_command(source: str, destination: str):
+    @click.option("--storage-options")
+    def create_item_command(source: str, destination: str, storage_options: str):
         """Creates a STAC Item
 
         Args:
             source (str): HREF of the Asset associated with the Item
             destination (str): An HREF for the STAC Collection
         """
-        item = stac.create_item(source)
+        if storage_options:
+            so = json.loads(storage_options)
+        else:
+            so = None
+        item = stac.create_item(source, storage_options=so)
 
         item.save_object(dest_href=destination)
 
