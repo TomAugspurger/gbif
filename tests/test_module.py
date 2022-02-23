@@ -1,9 +1,9 @@
 import unittest
 
-import stactools.ephemeral
+import stactools.gbif
 
 
 class TestModule(unittest.TestCase):
 
     def test_version(self):
-        self.assertIsNotNone(stactools.ephemeral.__version__)
+        self.assertIsNotNone(stactools.gbif.__version__)

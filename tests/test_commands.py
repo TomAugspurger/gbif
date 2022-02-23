@@ -4,13 +4,13 @@ from tempfile import TemporaryDirectory
 import pystac
 from stactools.testing import CliTestCase
 
-from stactools.ephemeral.commands import create_ephemeralcmd_command
+from stactools.gbif.commands import create_gbif_command
 
 
 class CommandsTest(CliTestCase):
 
     def create_subcommand_functions(self):
-        return [create_ephemeralcmd_command]
+        return [create_gbif_command]
 
     def test_create_collection(self):
         with TemporaryDirectory() as tmp_dir:
@@ -20,7 +20,7 @@ class CommandsTest(CliTestCase):
             destination = os.path.join(tmp_dir, "collection.json")
 
             result = self.run_command(
-                ["ephemeralcmd", "create-collection", destination])
+                ["gbif", "create-collection", destination])
 
             self.assertEqual(result.exit_code,
                              0,
@@ -42,7 +42,7 @@ class CommandsTest(CliTestCase):
             # Example:
             destination = os.path.join(tmp_dir, "item.json")
             result = self.run_command([
-                "ephemeralcmd",
+                "gbif",
                 "create-item",
                 "/path/to/asset.tif",
                 destination,

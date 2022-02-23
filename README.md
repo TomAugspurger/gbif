@@ -1,6 +1,4 @@
-# stactools-template
-
-This is a template repo used for creating new packages for `stactools`.
+# stactools-gbif
 
 ## How to use
 
