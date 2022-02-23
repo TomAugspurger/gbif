@@ -1,112 +1,143 @@
 import logging
-from datetime import datetime, timezone
+import re
+import datetime
 
-from pystac import (Asset, CatalogType, Collection, Extent, Item, MediaType,
-                    Provider, ProviderRole, SpatialExtent, TemporalExtent)
-from pystac.extensions.projection import ProjectionExtension
+import requests
+import pystac
+import stac_table
 
 logger = logging.getLogger(__name__)
 
 
-def create_collection() -> Collection:
-    """Create a STAC Collection
-
-    This function includes logic to extract all relevant metadata from
-    an asset describing the STAC collection and/or metadata coded into an
-    accompanying constants.py file.
-
-    See `Collection<https://pystac.readthedocs.io/en/latest/api.html#collection>`_.
-
-    Returns:
-        Collection: STAC Collection object
+def create_item(asset_href: str, storage_options=None, asset_extra_fields=None) -> pystac.Item:
     """
-    providers = [
-        Provider(
-            name="The OS Community",
-            roles=[
-                ProviderRole.PRODUCER, ProviderRole.PROCESSOR,
-                ProviderRole.HOST
+    Create a STAC item for a GBIF Parquet Dataset.
+
+    Parameters
+    ----------
+    asset_href : str
+        The path, including fsspec protocol if necessary, to the root of the parquet datasets.
+    storage_options: dict[str, Any], optional
+        Storage options used when creating the fsspec filesystem to read the metadata
+    asset_extra_fields:
+        Additional fields to include in the asset.
+
+    Examples
+    --------
+    >>> create_item(
+    ...     "az://gbif/occurrence/2021-04-13/occurrence.parquet",
+    ...     storage_options=dict(account_name="ai4edataeuwest")
+    ... )
+    """
+    date = datetime.datetime(*list(map(int, asset_href.split("/")[-2].split("-"))))
+    date_id = f"{date:%Y-%m-%d}"
+
+    item = pystac.Item(
+        f"gbif-{date_id}",
+        geometry={
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [180.0, -90.0],
+                    [180.0, 90.0],
+                    [-180.0, 90.0],
+                    [-180.0, -90.0],
+                    [180.0, -90.0],
+                ]
             ],
-            url="https://github.com/stac-utils/stactools",
-        )
-    ]
-
-    # Time must be in UTC
-    demo_time = datetime.now(tz=timezone.utc)
-
-    extent = Extent(
-        SpatialExtent([[-180., 90., 180., -90.]]),
-        TemporalExtent([demo_time, None]),
+        },
+        bbox=[-180, -90, 180, 90],
+        datetime=date,
+        properties={},
     )
 
-    collection = Collection(
-        id="my-collection-id",
-        title="A dummy STAC Collection",
-        description="Used for demonstration purposes",
-        license="CC-0",
-        providers=providers,
-        extent=extent,
-        catalog_type=CatalogType.RELATIVE_PUBLISHED,
+    result = stac_table.generate(
+        asset_href,
+        item,
+        storage_options=storage_options,
+        proj=False,
+        asset_extra_fields=asset_extra_fields,
+        count_rows=False,
     )
 
-    return collection
-
-
-def create_item(asset_href: str) -> Item:
-    """Create a STAC Item
-
-    This function should include logic to extract all relevant metadata from an
-    asset, metadata asset, and/or a constants.py file.
-
-    See `Item<https://pystac.readthedocs.io/en/latest/api.html#item>`_.
-
-    Args:
-        asset_href (str): The HREF pointing to an asset associated with the item
-
-    Returns:
-        Item: STAC Item object
-    """
-
-    properties = {
-        "title": "A dummy STAC Item",
-        "description": "Used for demonstration purposes",
-    }
-
-    demo_geom = {
-        "type":
-        "Polygon",
-        "coordinates": [[[-180, -90], [180, -90], [180, 90], [-180, 90],
-                         [-180, -90]]],
-    }
-
-    # Time must be in UTC
-    demo_time = datetime.now(tz=timezone.utc)
-
-    item = Item(
-        id="my-item-id",
-        properties=properties,
-        geometry=demo_geom,
-        bbox=[-180, 90, 180, -90],
-        datetime=demo_time,
-        stac_extensions=[],
+    xpr = re.compile(
+        r"^\|\s*(\w*?)\s*\| \w.*?\|.*?\|\s*(.*?)\s*\|$", re.UNICODE | re.MULTILINE
+    )
+    column_descriptions = dict(
+        xpr.findall(requests.get("https://raw.githubusercontent.com/TomAugspurger/stac-table/main/examples/gbif/column_descriptions.md").text)
     )
 
-    # It is a good idea to include proj attributes to optimize for libs like stac-vrt
-    proj_attrs = ProjectionExtension.ext(item, add_if_missing=True)
-    proj_attrs.epsg = 4326
-    proj_attrs.bbox = [-180, 90, 180, -90]
-    proj_attrs.shape = [1, 1]  # Raster shape
-    proj_attrs.transform = [-180, 360, 0, 90, 0, 180]  # Raster GeoTransform
+    for column in result.properties["table:columns"]:
+        column["description"] = column_descriptions[column["name"]]
 
-    # Add an asset to the item (COG for example)
-    item.add_asset(
-        "image",
-        Asset(
-            href=asset_href,
-            media_type=MediaType.COG,
-            roles=["data"],
-            title="A dummy STAC Item COG",
+    result.validate()
+    return result
+
+
+def create_collection(asset_extra_fields=None):
+    asset_extra_fields = asset_extra_fields or {}
+
+    collection = pystac.Collection(
+        "gbif",
+        description="{{ collection.description }}",
+        extent=pystac.Extent(
+            spatial=pystac.collection.SpatialExtent([[-180, -90, 180, 90]]),
+            temporal=pystac.collection.TemporalExtent([datetime.datetime(2021, 4, 13), None]),
         ),
     )
+    # collection.extra_fields["table:columns"] = result.properties["table:columns"]
+    collection.title = "Global Biodiversity Information Facility (GBIF)"
 
-    return item
+    pystac.extensions.item_assets.ItemAssetsExtension.add_to(collection)
+    collection.extra_fields["item_assets"] = {
+        "data": {
+            "type": stac_table.PARQUET_MEDIA_TYPE,
+            "title": "Dataset root",
+            "roles": ["data"],
+            **asset_extra_fields,
+        }
+    }
+
+    collection.stac_extensions.append(stac_table.SCHEMA_URI)
+    collection.keywords = ["GBIF", "Biodiversity", "Species"]
+    collection.extra_fields["msft:short_description"] = (
+        "An international network and data infrastructure funded by the world's "
+        "governments providing global data that document the occurrence of species."
+    )
+    collection.extra_fields["msft:container"] = "gbif"
+    collection.extra_fields["msft:storage_account"] = "ai4edataeuwest"
+    collection.providers = [
+        pystac.Provider(
+            "Global Biodiversity Information Facility",
+            roles=[
+                pystac.provider.ProviderRole.PRODUCER,
+                pystac.provider.ProviderRole.LICENSOR,
+                pystac.provider.ProviderRole.PROCESSOR,
+            ],
+            url="https://www.gbif.org/",
+        ),
+        # pystac.Provider(
+        #     "Microsoft",
+        #     roles=[pystac.provider.ProviderRole.HOST],
+        #     url="https://planetarycomputer.microsoft.com",
+        # ),
+    ]
+    # collection.assets["thumbnail"] = pystac.Asset(
+    #     title="Forest Inventory and Analysis",
+    #     href=(
+    #         "https://ai4edatasetspublicassets.blob.core.windows.net/"
+    #         "assets/pc_thumbnails/gbif.png"
+    #     ),
+    #     media_type="image/png",
+    # )
+    collection.links = [
+        pystac.Link(
+            pystac.RelType.LICENSE,
+            target="https://www.gbif.org/terms",
+            media_type="text/html",
+            title="Terms of use",
+        )
+    ]
+    # collection.validate()
+    return collection
+

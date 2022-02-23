@@ -12,10 +12,7 @@ class StacTest(unittest.TestCase):
         collection.set_self_href("")
 
         # Check that it has some required attributes
-        self.assertEqual(collection.id, "my-collection-id")
-        # self.assertEqual(collection.other_attr...
-
-        # Validate
+        self.assertEqual(collection.id, "gbif")
         collection.validate()
 
     def test_create_item(self):
