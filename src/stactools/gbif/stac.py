@@ -1,8 +1,8 @@
+import json
 import logging
-import re
 import datetime
 
-import requests
+import importlib.resources
 import pystac
 import stac_table
 
@@ -60,13 +60,7 @@ def create_item(asset_href: str, storage_options=None, asset_extra_fields=None) 
         count_rows=False,
     )
 
-    xpr = re.compile(
-        r"^\|\s*(\w*?)\s*\| \w.*?\|.*?\|\s*(.*?)\s*\|$", re.UNICODE | re.MULTILINE
-    )
-    column_descriptions = dict(
-        xpr.findall(requests.get("https://raw.githubusercontent.com/TomAugspurger/stac-table/main/examples/gbif/column_descriptions.md").text)
-    )
-
+    column_descriptions = json.loads(importlib.resources.read_text("stactools.gbif", "column_descriptions.json"))
     for column in result.properties["table:columns"]:
         column["description"] = column_descriptions[column["name"]]
 
